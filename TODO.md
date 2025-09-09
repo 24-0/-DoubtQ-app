@@ -1,33 +1,30 @@
-# TODO: Doubt Posting App Backend Setup and Testing
+# TODO - Show All Connected Portals View
 
-## Completed Tasks
-- [x] Add type guard functions for Question, CommunityMessage[], and other interfaces
-- [x] Update get questions feed to use type guards instead of unsafe casting
-- [x] Fix community messages handling to properly validate array types
-- [x] Fix user community post handling to validate object properties
-- [x] Replace 'any' types in getByPrefix usage with proper types
-- [x] Update similar questions endpoint to use type guards
-- [x] Update get groups endpoint to use type guards
-- [x] Test the changes to ensure type errors are resolved
-- [x] Type checking passed - no TypeScript errors
-- [x] Environment variables configured successfully
-- [x] Backend function deployed to Supabase Edge Functions
-- [x] Fixed Deno import issues for Supabase Edge Functions deployment
+## Steps to complete:
 
-## Pending Tasks
-- [ ] Set up environment variables (.env.local) with Supabase credentials
-- [ ] Configure storage buckets in Supabase dashboard
-- [ ] Test all API endpoints (auth, questions, answers, groups, community)
-- [ ] Set up local development environment for testing
-- [ ] Configure CORS and authentication properly
-- [ ] Test file upload/download functionality
-- [ ] Verify database schema and KV store integration
+1. Update `src/components/Navbar.tsx`
+   - Add a new navigation item "All Portals" to the navItems array.
+   - Ensure clicking it sets `currentView` to "all-portals".
 
-## Testing Tasks
-- [ ] Test user authentication endpoints (signup, signin)
-- [ ] Test question CRUD operations (create, read, update via answers)
-- [ ] Test answer operations (post, remove)
-- [ ] Test group operations (create, get user's groups)
-- [ ] Test community message operations (get, post)
-- [ ] Test error handling scenarios
-- [ ] Test data validation and edge cases
+2. Update `src/App.tsx`
+   - Add a new case "all-portals" in the `renderCurrentView` function.
+   - Create a new component or inline JSX to render all main views together:
+     - QuestionFeed
+     - PostQuestion
+     - StudyTable
+     - Groups
+     - Community
+     - Profile
+   - Ensure proper layout and styling for combined view.
+
+3. Test the new "All Portals" view:
+   - Verify navigation from Navbar.
+   - Verify all components render correctly.
+   - Check user authentication gating.
+   - Test interaction and UI responsiveness.
+
+4. Perform thorough testing of the entire app flow to ensure no regressions.
+
+---
+
+I will start with step 1: updating Navbar.tsx to add the "All Portals" nav item.

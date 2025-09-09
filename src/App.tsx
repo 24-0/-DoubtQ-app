@@ -102,7 +102,7 @@ export default function App() {
               </svg>
             </div>
             <h2 className="text-xl font-semibold text-gray-800 mb-2">Authentication Required</h2>
-            <p className="text-gray-600 mb-6">Please sign in to access this feature</p>
+            {"Please sign in to access this feature"}
             <button 
               onClick={() => setShowAuthModal(true)}
               className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-3 rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
@@ -110,6 +110,37 @@ export default function App() {
               Sign In to Continue
             </button>
           </div>
+        </div>
+      )
+    }
+
+    if (currentView === 'all-portals') {
+      return (
+        <div className="space-y-8">
+          <section>
+            <h2 className="text-2xl font-bold mb-4">Feed</h2>
+            <QuestionFeed user={user} session={session} isGuest={isGuest} />
+          </section>
+          <section>
+            <h2 className="text-2xl font-bold mb-4">Post Question</h2>
+            <PostQuestion user={user} session={session} onSuccess={() => setCurrentView('feed')} />
+          </section>
+          <section>
+            <h2 className="text-2xl font-bold mb-4">Study Table</h2>
+            <StudyTable user={user} session={session} isGuest={isGuest} />
+          </section>
+          <section>
+            <h2 className="text-2xl font-bold mb-4">Groups</h2>
+            <Groups user={user} session={session} />
+          </section>
+          <section>
+            <h2 className="text-2xl font-bold mb-4">Community</h2>
+            <Community user={user} session={session} isGuest={isGuest} />
+          </section>
+          <section>
+            <h2 className="text-2xl font-bold mb-4">Profile</h2>
+            <Profile user={user} userProfile={userProfile} onUpdateProfile={setUserProfile} />
+          </section>
         </div>
       )
     }

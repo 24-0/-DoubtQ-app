@@ -29,6 +29,7 @@ export function Navbar({
     { id: 'study', label: 'Study', icon: BookOpen },
     { id: 'groups', label: 'Groups', icon: Users },
     { id: 'community', label: 'Community', icon: Globe },
+    { id: 'all-portals', label: 'All Portals', icon: Award },
   ]
 
   return (
