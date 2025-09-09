@@ -8,7 +8,7 @@ import { Badge } from './ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 import { Label } from './ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { toast } from 'sonner@2.0.3'
+import { toast } from 'sonner'
 import { projectId } from '../utils/supabase/info'
 
 interface GroupsProps {
@@ -16,10 +16,26 @@ interface GroupsProps {
   session: any
 }
 
+interface Group {
+  id: string;
+  name: string;
+  description: string;
+  subject: string;
+  members?: any[];
+  createdAt: string;
+  messages?: any[];
+  files?: any[];
+}
+
+interface GroupChatProps {
+  group: Group;
+  onBack: () => void;
+}
+
 export function Groups({ user, session }: GroupsProps) {
-  const [groups, setGroups] = useState([])
+  const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedGroup, setSelectedGroup] = useState(null)
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newGroup, setNewGroup] = useState({
     name: '',
@@ -61,7 +77,7 @@ export function Groups({ user, session }: GroupsProps) {
     }
   }
 
-  const handleCreateGroup = async (e) => {
+  const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!newGroup.name.trim() || !newGroup.description.trim() || !newGroup.subject) {
@@ -97,7 +113,7 @@ export function Groups({ user, session }: GroupsProps) {
     }
   }
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setNewGroup(prev => ({
       ...prev,
@@ -177,7 +193,7 @@ export function Groups({ user, session }: GroupsProps) {
               
               <div className="space-y-2">
                 <Label>Subject</Label>
-                <Select value={newGroup.subject} onValueChange={(value) => 
+                <Select value={newGroup.subject} onValueChange={(value: string) =>
                   setNewGroup(prev => ({ ...prev, subject: value }))
                 }>
                   <SelectTrigger>
@@ -256,7 +272,7 @@ export function Groups({ user, session }: GroupsProps) {
   )
 }
 
-function GroupChat({ group, onBack }) {
+function GroupChat({ group, onBack }: GroupChatProps) {
   const [messages, setMessages] = useState(group.messages || [])
   const [newMessage, setNewMessage] = useState('')
   const [files, setFiles] = useState(group.files || [])
@@ -271,13 +287,17 @@ function GroupChat({ group, onBack }) {
       timestamp: new Date().toISOString()
     }
 
-    setMessages(prev => [...prev, message])
+    setMessages((prev: any[]) => [...prev, message])
     setNewMessage('')
     toast.success('Message sent!')
   }
 
   const handleFileUpload = () => {
     toast.info('File upload feature coming soon! You\'ll be able to share PDFs, images, and documents.')
+  }
+
+  const handleFileChange = (file: File) => {
+    // Placeholder for file handling logic
   }
 
   return (

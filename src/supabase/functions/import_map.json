@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "https://deno.land/x/hono@v3.12.11/mod.ts": "https://deno.land/x/hono@v3.12.11/mod.ts",
+    "https://esm.sh/v135/@supabase/supabase-js@2.39.3": "https://esm.sh/v135/@supabase/supabase-js@2.39.3"
+  }
+}

@@ -4,7 +4,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
-import { toast } from 'sonner@2.0.3'
+import { toast } from 'sonner'
 import { getSupabaseClient } from '../utils/supabase/client'
 import { projectId, publicAnonKey } from '../utils/supabase/info'
 

@@ -6,7 +6,23 @@ import { Progress } from './ui/progress'
 import { Badge } from './ui/badge'
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
-import { toast } from 'sonner@2.0.3'
+import { toast } from 'sonner'
+
+interface StudySession {
+  id: number
+  subject: string
+  startTime: string
+  duration: number
+  status: string
+  endTime?: string
+}
+
+interface StudyGoal {
+  id: number
+  text: string
+  completed: boolean
+  createdAt: string
+}
 
 interface StudyTableProps {
   user: any
@@ -15,9 +31,9 @@ interface StudyTableProps {
 }
 
 export function StudyTable({ user, session, isGuest }: StudyTableProps) {
-  const [activeSession, setActiveSession] = useState(null)
-  const [studySessions, setStudySessions] = useState([])
-  const [goals, setGoals] = useState([])
+  const [activeSession, setActiveSession] = useState<StudySession | null>(null)
+  const [studySessions, setStudySessions] = useState<StudySession[]>([])
+  const [goals, setGoals] = useState<StudyGoal[]>([])
   const [newGoal, setNewGoal] = useState('')
   const [timer, setTimer] = useState(0)
   const [isRunning, setIsRunning] = useState(false)
@@ -25,15 +41,20 @@ export function StudyTable({ user, session, isGuest }: StudyTableProps) {
 
   // Timer effect
   useEffect(() => {
-    let interval = null
+    let interval: NodeJS.Timeout | null = null
     if (isRunning && activeSession) {
       interval = setInterval(() => {
         setTimer(timer => timer + 1)
       }, 1000)
-    } else if (!isRunning) {
+    } else if (!isRunning && interval) {
       clearInterval(interval)
+      interval = null
     }
-    return () => clearInterval(interval)
+    return () => {
+      if (interval) {
+        clearInterval(interval)
+      }
+    }
   }, [isRunning, activeSession])
 
   // Load study data from localStorage (since we're focusing on frontend for study table)
@@ -50,7 +71,7 @@ export function StudyTable({ user, session, isGuest }: StudyTableProps) {
     }
   }, [])
 
-  const saveToLocalStorage = (key, data) => {
+  const saveToLocalStorage = (key: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data))
   }
 
@@ -118,7 +139,7 @@ export function StudyTable({ user, session, isGuest }: StudyTableProps) {
     toast.success('Goal added!')
   }
 
-  const toggleGoal = (goalId) => {
+  const toggleGoal = (goalId: number) => {
     const updatedGoals = goals.map(goal =>
       goal.id === goalId ? { ...goal, completed: !goal.completed } : goal
     )
@@ -126,11 +147,11 @@ export function StudyTable({ user, session, isGuest }: StudyTableProps) {
     saveToLocalStorage('studyGoals', updatedGoals)
   }
 
-  const formatTime = (seconds) => {
+  const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600)
     const mins = Math.floor((seconds % 3600) / 60)
     const secs = seconds % 60
-    
+
     if (hrs > 0) {
       return `${hrs}h ${mins}m ${secs}s`
     } else if (mins > 0) {

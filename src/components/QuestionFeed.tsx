@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from './ui/card'
 import { Badge } from './ui/badge'
 import { Textarea } from './ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { toast } from 'sonner@2.0.3'
+import { toast } from 'sonner'
 import { projectId, publicAnonKey } from '../utils/supabase/info'
 
 interface QuestionFeedProps {
@@ -15,15 +15,33 @@ interface QuestionFeedProps {
   isGuest: boolean
 }
 
+interface Question {
+  id: string;
+  title: string;
+  content: string;
+  userName: string;
+  subject: string;
+  answers?: Answer[];
+  answerLimit: number;
+  tags?: string[];
+  userId?: string;
+}
+
+interface Answer {
+  id: string;
+  content: string;
+  createdAt: string;
+}
+
 export function QuestionFeed({ user, session, isGuest }: QuestionFeedProps) {
-  const [questions, setQuestions] = useState([])
+  const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSubject, setSelectedSubject] = useState('all')
   const [selectedTags, setSelectedTags] = useState('')
-  const [answerContent, setAnswerContent] = useState({})
-  const [submittingAnswer, setSubmittingAnswer] = useState(null)
-  const [similarQuestions, setSimilarQuestions] = useState({})
+  const [answerContent, setAnswerContent] = useState<Record<string, string>>({})
+  const [submittingAnswer, setSubmittingAnswer] = useState<string | null>(null)
+  const [similarQuestions, setSimilarQuestions] = useState<Record<string, Question[]>>({})
 
   const subjects = [
     'Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science',
@@ -62,7 +80,7 @@ export function QuestionFeed({ user, session, isGuest }: QuestionFeedProps) {
     }
   }
 
-  const handleAnswerSubmit = async (questionId) => {
+  const handleAnswerSubmit = async (questionId: string) => {
     if (!user && !isGuest) {
       toast.error('Please sign in to answer questions')
       return
@@ -111,7 +129,7 @@ export function QuestionFeed({ user, session, isGuest }: QuestionFeedProps) {
     }
   }
 
-  const handleSaveQuestion = async (questionId) => {
+  const handleSaveQuestion = async (questionId: string) => {
     if (!user) {
       toast.error('Please sign in to save questions')
       return
@@ -139,7 +157,7 @@ export function QuestionFeed({ user, session, isGuest }: QuestionFeedProps) {
     }
   }
 
-  const handleViewSimilar = async (questionId) => {
+  const handleViewSimilar = async (questionId: string) => {
     try {
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-0a52de3b/questions/${questionId}/similar`,
@@ -161,7 +179,7 @@ export function QuestionFeed({ user, session, isGuest }: QuestionFeedProps) {
     }
   }
 
-  const handleRemoveAnswer = async (questionId, answerId) => {
+  const handleRemoveAnswer = async (questionId: string, answerId: string) => {
     try {
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-0a52de3b/questions/${questionId}/answers/${answerId}`,
@@ -186,7 +204,7 @@ export function QuestionFeed({ user, session, isGuest }: QuestionFeedProps) {
     }
   }
 
-  const handleAIAnswer = (questionId) => {
+  const handleAIAnswer = (questionId: string) => {
     toast.info('AI Answer feature coming soon! This will provide intelligent responses to help with your studies.')
   }
 

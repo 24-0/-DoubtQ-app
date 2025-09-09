@@ -7,7 +7,7 @@ import { Badge } from './ui/badge'
 import { Progress } from './ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 import { Label } from './ui/label'
-import { toast } from 'sonner@2.0.3'
+import { toast } from 'sonner'
 
 interface ProfileProps {
   user: any
@@ -123,14 +123,14 @@ export function Profile({ user, userProfile, onUpdateProfile }: ProfileProps) {
     toast.success('Profile updated successfully!')
   }
 
-  const handleRedeemReward = (reward) => {
+  const handleRedeemReward = (reward: { id: number; name: string; points: number; description: string; category: string }) => {
     if ((userProfile?.points || 0) < reward.points) {
       toast.error(`You need ${reward.points} points to redeem this reward`)
       return
     }
 
     toast.success(`${reward.name} redeemed! Check your email for details.`)
-    
+
     // Update points (in real app, this would be done via backend)
     const updatedProfile = {
       ...userProfile,
@@ -139,7 +139,7 @@ export function Profile({ user, userProfile, onUpdateProfile }: ProfileProps) {
     onUpdateProfile(updatedProfile)
   }
 
-  const getLevel = (points) => {
+  const getLevel = (points: number) => {
     if (points >= 1000) return { level: 5, name: 'Expert', color: 'text-purple-600' }
     if (points >= 500) return { level: 4, name: 'Advanced', color: 'text-blue-600' }
     if (points >= 200) return { level: 3, name: 'Intermediate', color: 'text-green-600' }

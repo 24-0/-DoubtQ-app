@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from './ui/label'
 import { Badge } from './ui/badge'
 import { X, Plus } from 'lucide-react'
-import { toast } from 'sonner@2.0.3'
+import { toast } from 'sonner'
 import { projectId } from '../utils/supabase/info'
 
 interface PostQuestionProps {
@@ -23,7 +23,7 @@ export function PostQuestion({ user, session, onSuccess }: PostQuestionProps) {
     subject: '',
     answerLimit: 3
   })
-  const [tags, setTags] = useState([])
+  const [tags, setTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -33,7 +33,7 @@ export function PostQuestion({ user, session, onSuccess }: PostQuestionProps) {
     'Psychology', 'Sociology', 'Art', 'Music', 'Engineering', 'Medicine'
   ]
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
@@ -41,14 +41,14 @@ export function PostQuestion({ user, session, onSuccess }: PostQuestionProps) {
     }))
   }
 
-  const handleSubjectChange = (value) => {
+  const handleSubjectChange = (value: string) => {
     setFormData(prev => ({
       ...prev,
       subject: value
     }))
   }
 
-  const handleAnswerLimitChange = (value) => {
+  const handleAnswerLimitChange = (value: string) => {
     setFormData(prev => ({
       ...prev,
       answerLimit: parseInt(value)
@@ -62,11 +62,11 @@ export function PostQuestion({ user, session, onSuccess }: PostQuestionProps) {
     }
   }
 
-  const removeTag = (tagToRemove) => {
+  const removeTag = (tagToRemove: string) => {
     setTags(prev => prev.filter(tag => tag !== tagToRemove))
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!formData.title.trim() || !formData.content.trim() || !formData.subject) {
@@ -101,7 +101,7 @@ export function PostQuestion({ user, session, onSuccess }: PostQuestionProps) {
       onSuccess()
     } catch (error) {
       console.error('Error posting question:', error)
-      toast.error(error.message || 'Failed to post question')
+      toast.error(error instanceof Error ? error.message : 'Failed to post question')
     } finally {
       setIsSubmitting(false)
     }

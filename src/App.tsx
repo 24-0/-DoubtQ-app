@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Session, User, AuthChangeEvent } from '@supabase/supabase-js'
 import { Navbar } from './components/Navbar'
 import { QuestionFeed } from './components/QuestionFeed'
 import { PostQuestion } from './components/PostQuestion'
@@ -11,19 +12,25 @@ import { Toaster } from './components/ui/sonner'
 import { getSupabaseClient } from './utils/supabase/client'
 import { projectId, publicAnonKey } from './utils/supabase/info'
 
+interface UserProfile {
+  id: string
+  email: string
+  // Add other properties as needed
+}
+
 const supabase = getSupabaseClient()
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('feed')
-  const [user, setUser] = useState(null)
-  const [session, setSession] = useState(null)
-  const [showAuthModal, setShowAuthModal] = useState(false)
-  const [isGuest, setIsGuest] = useState(false)
-  const [userProfile, setUserProfile] = useState(null)
+  const [currentView, setCurrentView] = useState<string>('feed')
+  const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false)
+  const [isGuest, setIsGuest] = useState<boolean>(false)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
 
   useEffect(() => {
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
@@ -32,7 +39,7 @@ export default function App() {
     })
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
@@ -57,14 +64,14 @@ export default function App() {
     }
   }, [currentView, user, isGuest])
 
-  const fetchUserProfile = async (userId) => {
+  const fetchUserProfile = async (userId: string) => {
     try {
       const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-0a52de3b/user/${userId}`, {
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`
         }
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         setUserProfile(data.user)
@@ -79,7 +86,7 @@ export default function App() {
     setShowAuthModal(false)
   }
 
-  const isAuthRequired = (view) => {
+  const isAuthRequired = (view: string) => {
     return ['post', 'groups', 'profile'].includes(view)
   }
 

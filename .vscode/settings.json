@@ -1,25 +1,19 @@
 {
+  "deno.enable": true,
+  "deno.enablePaths": ["./src/supabase/functions"],
+  "deno.config": "./src/supabase/functions/my-function/deno.json",
+  "deno.importMap": "./src/supabase/functions/my-function/import_map.json",
+  "deno.suggest.imports.hosts": {
+    "https://deno.land": true,
+    "https://esm.sh": true
+  },
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "typescript.suggest.autoImports": true,
+  "editor.defaultFormatter": "denoland.vscode-deno",
   "[typescript]": {
     "editor.defaultFormatter": "denoland.vscode-deno"
   },
-  "claudeCodeChat.permissions.yoloMode": true,
-  "deno.enablePaths": [
-    "supabase/functions"
-  ],
-  "deno.lint": true,
-  "deno.unstable": [
-    "bare-node-builtins",
-    "byonm",
-    "sloppy-imports",
-    "unsafe-proto",
-    "webgpu",
-    "broadcast-channel",
-    "worker-options",
-    "cron",
-    "kv",
-    "ffi",
-    "fs",
-    "http",
-    "net"
-  ]
+  "[javascript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  }
 }

@@ -1,10 +1,9 @@
-// Deno compatible imports for Supabase Edge Functions
+// Deno-compatible imports for Supabase Edge Functions
 import { Hono } from "https://deno.land/x/hono@v3.12.11/mod.ts";
-import { cors } from "https://deno.land/x/hono@v3.12.11/middleware/cors/index.ts";
-import { logger } from "https://deno.land/x/hono@v3.12.11/middleware/logger/index.ts";
+import { cors } from "https://deno.land/x/hono@v3.12.11/middleware.ts";
+import { logger } from "https://deno.land/x/hono@v3.12.11/middleware.ts";
+import type { Context } from "https://deno.land/x/hono@v3.12.11/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// Environment variables are automatically available in Supabase Edge Functions
-// No need to import dotenv
 
 // Environment variables are automatically available in Supabase Edge Functions
 console.log('Environment variables:')
@@ -13,22 +12,22 @@ console.log('SUPABASE_SERVICE_ROLE_KEY:', Deno.env.get('SUPABASE_SERVICE_ROLE_KE
 
 // Simple in-memory KV store implementation
 class SimpleKV {
-  private store: Map<string, any> = new Map();
+  private store: Map<string, unknown> = new Map();
 
-  async get(key: string): Promise<any | null> {
+  get(key: string): unknown | null {
     return this.store.get(key) || null;
   }
 
-  async set(key: string, value: any): Promise<void> {
+  set(key: string, value: unknown): void {
     this.store.set(key, value);
   }
 
-  async delete(key: string): Promise<void> {
+  delete(key: string): void {
     this.store.delete(key);
   }
 
-  async getByPrefix(prefix: string): Promise<any[]> {
-    const results: any[] = [];
+  getByPrefix(prefix: string): unknown[] {
+    const results: unknown[] = [];
     for (const [key, value] of this.store.entries()) {
       if (key.startsWith(prefix)) {
         results.push(value);
@@ -180,6 +179,7 @@ function randomUUID(): string {
 
 const app = new Hono()
 
+// Configure CORS and logging for Supabase Edge Functions
 app.use('*', cors({
   origin: '*',
   allowHeaders: ['*'],
@@ -190,12 +190,17 @@ app.use('*', logger())
 
 console.log('Creating Supabase client...')
 
-// Store values in variables first
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+// Get environment variables
+const supabaseUrl = Deno.env.get('SUPABASE_URL')
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-console.log('URL length:', supabaseUrl?.length || 0)
-console.log('Key length:', supabaseKey?.length || 0)
+if (!supabaseUrl || !supabaseKey) {
+  console.error('Missing required environment variables: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+  throw new Error('Missing environment variables')
+}
+
+console.log('URL length:', supabaseUrl.length)
+console.log('Key length:', supabaseKey.length)
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 console.log('Supabase client created successfully!')
@@ -220,8 +225,7 @@ async function initStorage() {
 
 initStorage().catch(console.error)
 
-// Helper function to verify user authentication
-async function verifyUser(c: any): Promise<UserProfile | null> {
+async function verifyUser(c: Context): Promise<UserProfile | null> {
   const authHeader = c.req.header('Authorization')
   if (!authHeader) return null
 
@@ -237,7 +241,7 @@ async function verifyUser(c: any): Promise<UserProfile | null> {
 }
 
 // User registration
-app.post('/make-server-0a52de3b/signup', async (c) => {
+app.post('/signup', async (c) => {
   try {
     const { email, password, name }: SignupRequest = await c.req.json()
 
@@ -272,7 +276,7 @@ app.post('/make-server-0a52de3b/signup', async (c) => {
 })
 
 // User signin
-app.post('/make-server-0a52de3b/signin', async (c) => {
+app.post('/signin', async (c) => {
   try {
     const { email, password }: SigninRequest = await c.req.json()
 
@@ -672,4 +676,4 @@ app.get('/', (c) => {
   return c.json({ message: 'Doubt Posting App API is running!' })
 })
 
-export default app;
+export default app.fetch;

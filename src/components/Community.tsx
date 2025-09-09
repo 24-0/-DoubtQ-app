@@ -5,7 +5,7 @@ import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Badge } from './ui/badge'
-import { toast } from 'sonner@2.0.3'
+import { toast } from 'sonner'
 import { projectId, publicAnonKey } from '../utils/supabase/info'
 
 interface CommunityProps {
@@ -16,7 +16,14 @@ interface CommunityProps {
 
 export function Community({ user, session, isGuest }: CommunityProps) {
   const [selectedCountry, setSelectedCountry] = useState('United States')
-  const [messages, setMessages] = useState([])
+  interface Message {
+    id: string;
+    userName: string;
+    createdAt: string;
+    content: string;
+  }
+
+  const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [canPost, setCanPost] = useState(true)
