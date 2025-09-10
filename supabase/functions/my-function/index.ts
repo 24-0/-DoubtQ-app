@@ -1,8 +1,24 @@
 // Deno compatible imports for Supabase Edge Functions
-import { Hono } from "https://deno.land/x/hono@v3.12.11/mod.ts";
-import { cors } from "https://deno.land/x/hono@v3.12.11/middleware/cors/index.ts";
-import { logger } from "https://deno.land/x/hono@v3.12.11/middleware/logger/index.ts";
+import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { Context, Next } from "https://deno.land/x/hono@v4.3.11/mod.ts";
+
+// Custom CORS middleware
+const cors = async (c: Context, next: Next) => {
+  c.header('Access-Control-Allow-Origin', '*');
+  c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  c.header('Access-Control-Allow-Headers', '*');
+  if (c.req.method === 'OPTIONS') {
+    return c.text('OK', 204);
+  }
+  await next();
+};
+
+// Custom logger middleware
+const logger = async (c: Context, next: Next) => {
+  console.log(`${c.req.method} ${c.req.path}`);
+  await next();
+};
 // Environment variables are automatically available in Supabase Edge Functions
 // No need to import dotenv
 
@@ -11,34 +27,7 @@ console.log('Environment variables:')
 console.log('SUPABASE_URL:', Deno.env.get('SUPABASE_URL') ? 'Found' : 'Missing')
 console.log('SUPABASE_SERVICE_ROLE_KEY:', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ? 'Found' : 'Missing')
 
-// Simple in-memory KV store implementation
-class SimpleKV {
-  private store: Map<string, any> = new Map();
-
-  async get(key: string): Promise<any | null> {
-    return this.store.get(key) || null;
-  }
-
-  async set(key: string, value: any): Promise<void> {
-    this.store.set(key, value);
-  }
-
-  async delete(key: string): Promise<void> {
-    this.store.delete(key);
-  }
-
-  async getByPrefix(prefix: string): Promise<any[]> {
-    const results: any[] = [];
-    for (const [key, value] of this.store.entries()) {
-      if (key.startsWith(prefix)) {
-        results.push(value);
-      }
-    }
-    return results;
-  }
-}
-
-const kv = new SimpleKV();
+// Database helper functions for Supabase Postgres
 
 // Define interfaces for request bodies
 interface SignupRequest {
@@ -140,8 +129,44 @@ interface CommunityMessage {
   createdAt: string;
 }
 
+// Database row interfaces
+interface QuestionRow {
+  id: string;
+  user_id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  subject: string;
+  answer_limit: number;
+  answers: Answer[];
+  saved_by: string[];
+  created_at: string;
+  users?: { name: string };
+}
+
+interface GroupRow {
+  id: string;
+  name: string;
+  description: string;
+  subject: string;
+  owner_id: string;
+  members: string[];
+  messages: GroupMessage[];
+  files: GroupFile[];
+  created_at: string;
+}
+
+interface CommunityMessageRow {
+  id: string;
+  user_id: string;
+  country: string;
+  content: string;
+  created_at: string;
+  users?: { name: string };
+}
+
 // Type guard functions
-function isQuestion(obj: unknown): obj is Question {
+function _isQuestion(obj: unknown): obj is Question {
   return typeof obj === 'object' && obj !== null &&
          'id' in obj && 'userId' in obj && 'title' in obj &&
          'content' in obj && 'tags' in obj && 'subject' in obj &&
@@ -149,24 +174,24 @@ function isQuestion(obj: unknown): obj is Question {
          'createdAt' in obj;
 }
 
-function isCommunityMessageArray(obj: unknown): obj is CommunityMessage[] {
-  return Array.isArray(obj) && obj.every(isCommunityMessage);
+function _isCommunityMessageArray(obj: unknown): obj is CommunityMessage[] {
+  return Array.isArray(obj) && obj.every(_isCommunityMessage);
 }
 
-function isCommunityMessage(obj: unknown): obj is CommunityMessage {
+function _isCommunityMessage(obj: unknown): obj is CommunityMessage {
   return typeof obj === 'object' && obj !== null &&
          'id' in obj && 'userId' in obj && 'userName' in obj &&
          'content' in obj && 'createdAt' in obj;
 }
 
-function isUserProfile(obj: unknown): obj is UserProfile {
+function _isUserProfile(obj: unknown): obj is UserProfile {
   return typeof obj === 'object' && obj !== null &&
          'id' in obj && 'email' in obj && 'name' in obj &&
          'points' in obj && 'questionsAsked' in obj &&
          'questionsAnswered' in obj && 'createdAt' in obj;
 }
 
-function isGroup(obj: unknown): obj is Group {
+function _isGroup(obj: unknown): obj is Group {
   return typeof obj === 'object' && obj !== null &&
          'id' in obj && 'name' in obj && 'description' in obj &&
          'subject' in obj && 'ownerId' in obj && 'members' in obj &&
@@ -180,13 +205,9 @@ function randomUUID(): string {
 
 const app = new Hono()
 
-app.use('*', cors({
-  origin: '*',
-  allowHeaders: ['*'],
-  allowMethods: ['*'],
-}))
+app.use('*', cors)
 
-app.use('*', logger())
+app.use('*', logger)
 
 console.log('Creating Supabase client...')
 
@@ -221,7 +242,7 @@ async function initStorage() {
 initStorage().catch(console.error)
 
 // Helper function to verify user authentication
-async function verifyUser(c: any): Promise<UserProfile | null> {
+async function verifyUser(c: Context): Promise<UserProfile | null> {
   const authHeader = c.req.header('Authorization')
   if (!authHeader) return null
 
@@ -231,13 +252,20 @@ async function verifyUser(c: any): Promise<UserProfile | null> {
   const { data: { user }, error } = await supabase.auth.getUser(accessToken)
   if (error || !user) return null
 
-  // Get user profile from KV store
-  const userProfile = await kv.get(`user:${user.id}`) as UserProfile | null
-  return userProfile
+  // Get user profile from database
+  const { data: userProfile, error: profileError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single()
+
+  if (profileError || !userProfile) return null
+
+  return userProfile as UserProfile
 }
 
 // User registration
-app.post('/make-server-0a52de3b/signup', async (c) => {
+app.post('/make-server-0a52de3b/signup', async (c: Context) => {
   try {
     const { email, password, name }: SignupRequest = await c.req.json()
 
@@ -253,16 +281,22 @@ app.post('/make-server-0a52de3b/signup', async (c) => {
       return c.json({ error: error.message }, 400)
     }
 
-    // Initialize user profile
-    await kv.set(`user:${data.user.id}`, {
-      id: data.user.id,
-      email,
-      name,
-      points: 0,
-      questionsAsked: 0,
-      questionsAnswered: 0,
-      createdAt: new Date().toISOString()
-    })
+    // Initialize user profile in database
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: data.user.id,
+        email,
+        name,
+        points: 0,
+        questions_asked: 0,
+        questions_answered: 0
+      })
+
+    if (profileError) {
+      console.log('Profile creation error:', profileError)
+      return c.json({ error: 'Failed to create user profile' }, 500)
+    }
 
     return c.json({ user: data.user })
   } catch (error) {
@@ -272,7 +306,7 @@ app.post('/make-server-0a52de3b/signup', async (c) => {
 })
 
 // User signin
-app.post('/make-server-0a52de3b/signin', async (c) => {
+app.post('/make-server-0a52de3b/signin', async (c: Context) => {
   try {
     const { email, password }: SigninRequest = await c.req.json()
 
@@ -298,15 +332,19 @@ app.post('/make-server-0a52de3b/signin', async (c) => {
 })
 
 // Get user profile
-app.get('/make-server-0a52de3b/user/:id', async (c) => {
+app.get('/make-server-0a52de3b/user/:id', async (c: Context) => {
   try {
     const userId: string = c.req.param('id')
-    const user = await kv.get(`user:${userId}`)
-    
-    if (!user) {
+    const { data: user, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (error || !user) {
       return c.json({ error: 'User not found' }, 404)
     }
-    
+
     return c.json({ user })
   } catch (error) {
     console.log('Get user error:', error)
@@ -314,8 +352,8 @@ app.get('/make-server-0a52de3b/user/:id', async (c) => {
   }
 })
 
- // Post a question
-app.post('/make-server-0a52de3b/questions', async (c) => {
+// Post a question
+app.post('/make-server-0a52de3b/questions', async (c: Context) => {
   try {
     const user = await verifyUser(c)
     if (!user) {
@@ -325,26 +363,39 @@ app.post('/make-server-0a52de3b/questions', async (c) => {
     const { title, content, tags, subject, answerLimit = 3 }: PostQuestionRequest = await c.req.json()
 
     const questionId = randomUUID()
-    const question: Question = {
-      id: questionId,
-      userId: user.id,
-      title,
-      content,
-      tags: tags || [],
-      subject,
-      answerLimit,
-      answers: [],
-      savedBy: [],
-      createdAt: new Date().toISOString()
+
+    // Insert question into database
+    const { data: question, error: questionError } = await supabase
+      .from('questions')
+      .insert({
+        id: questionId,
+        user_id: user.id,
+        title,
+        content,
+        tags: tags || [],
+        subject,
+        answer_limit: answerLimit,
+        answers: [],
+        saved_by: []
+      })
+      .select()
+      .single()
+
+    if (questionError) {
+      console.log('Question creation error:', questionError)
+      return c.json({ error: 'Failed to create question' }, 500)
     }
 
-    await kv.set(`question:${questionId}`, question)
-
     // Update user stats
-    const userProfile = await kv.get(`user:${user.id}`) as UserProfile | null
-    if (userProfile) {
-      userProfile.questionsAsked = (userProfile.questionsAsked || 0) + 1
-      await kv.set(`user:${user.id}`, userProfile)
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        questions_asked: (user.questionsAsked || 0) + 1
+      })
+      .eq('id', user.id)
+
+    if (updateError) {
+      console.log('User stats update error:', updateError)
     }
 
     return c.json({ question })
@@ -355,54 +406,55 @@ app.post('/make-server-0a52de3b/questions', async (c) => {
 })
 
 // Get questions feed
-app.get('/make-server-0a52de3b/questions', async (c) => {
+app.get('/make-server-0a52de3b/questions', async (c: Context) => {
   try {
     const { subject, tags, search } = c.req.query()
 
-    const rawQuestions = await kv.getByPrefix('question:')
-    let filteredQuestions = rawQuestions
-      .filter(isQuestion)
-      .sort((a: Question, b: Question) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )
+    let query = supabase
+      .from('questions')
+      .select(`
+        *,
+        users!questions_user_id_fkey (
+          name
+        )
+      `)
+      .order('created_at', { ascending: false })
 
     // Apply filters
     if (subject) {
-      filteredQuestions = filteredQuestions.filter((q: Question) => q.subject === subject)
+      query = query.eq('subject', subject)
     }
 
     if (tags) {
       const tagArray: string[] = tags.split(',')
-      filteredQuestions = filteredQuestions.filter((q: Question) =>
-        tagArray.some((tag: string) => q.tags?.includes(tag))
-      )
+      query = query.overlaps('tags', tagArray)
     }
 
     if (search) {
-      filteredQuestions = filteredQuestions.filter((q: Question) =>
-        q.title?.toLowerCase().includes(search.toLowerCase()) ||
-        q.content?.toLowerCase().includes(search.toLowerCase())
-      )
+      query = query.or(`title.ilike.%${search}%,content.ilike.%${search}%`)
     }
 
-    // Get user info for each question
-    const questionsWithUsers = await Promise.all(
-      filteredQuestions.map(async (question: Question) => {
-        try {
-          const user = await kv.get(`user:${question.userId}`) as UserProfile | null
-          return {
-            ...question,
-            userName: user?.name || 'Anonymous'
-          }
-        } catch (error) {
-          console.log('Error getting user for question:', question.id, error)
-          return {
-            ...question,
-            userName: 'Anonymous'
-          }
-        }
-      })
-    )
+    const { data: questions, error } = await query
+
+    if (error) {
+      console.log('Get questions error:', error)
+      return c.json({ error: 'Failed to get questions' }, 500)
+    }
+
+    // Format questions with user names
+    const questionsWithUsers = questions?.map((question: QuestionRow) => ({
+      id: question.id,
+      userId: question.user_id,
+      title: question.title,
+      content: question.content,
+      tags: question.tags,
+      subject: question.subject,
+      answerLimit: question.answer_limit,
+      answers: question.answers || [],
+      savedBy: question.saved_by || [],
+      createdAt: question.created_at,
+      userName: question.users?.name || 'Anonymous'
+    })) || []
 
     return c.json({ questions: questionsWithUsers })
   } catch (error) {
@@ -412,7 +464,7 @@ app.get('/make-server-0a52de3b/questions', async (c) => {
 })
 
 // Post an answer
-app.post('/make-server-0a52de3b/questions/:id/answers', async (c) => {
+app.post('/make-server-0a52de3b/questions/:id/answers', async (c: Context) => {
   try {
     const user = await verifyUser(c)
     if (!user) {
@@ -422,36 +474,57 @@ app.post('/make-server-0a52de3b/questions/:id/answers', async (c) => {
     const questionId: string = c.req.param('id')
     const { content }: PostAnswerRequest = await c.req.json()
 
-    const rawQuestion = await kv.get(`question:${questionId}`)
-    if (!isQuestion(rawQuestion)) {
+    // Get question from database
+    const { data: question, error: questionError } = await supabase
+      .from('questions')
+      .select('*')
+      .eq('id', questionId)
+      .single()
+
+    if (questionError || !question) {
       return c.json({ error: 'Question not found' }, 404)
     }
-    const question: Question = rawQuestion
 
-    if (question.answers.length >= question.answerLimit) {
+    // Check answer limit
+    const currentAnswers = question.answers || []
+    if (currentAnswers.length >= question.answer_limit) {
       return c.json({ error: 'Answer limit reached' }, 400)
     }
 
     const answerId = randomUUID()
-    const answer: Answer = {
+    const newAnswer: Answer = {
       id: answerId,
       userId: user.id,
       content,
       createdAt: new Date().toISOString()
     }
 
-    question.answers.push(answer)
-    await kv.set(`question:${questionId}`, question)
+    // Add answer to question
+    const updatedAnswers = [...currentAnswers, newAnswer]
+    const { error: updateError } = await supabase
+      .from('questions')
+      .update({ answers: updatedAnswers })
+      .eq('id', questionId)
 
-    // Award points to answerer
-    const userProfile = await kv.get(`user:${user.id}`) as UserProfile | null
-    if (userProfile) {
-      userProfile.points = (userProfile.points || 0) + 10
-      userProfile.questionsAnswered = (userProfile.questionsAnswered || 0) + 1
-      await kv.set(`user:${user.id}`, userProfile)
+    if (updateError) {
+      console.log('Update question error:', updateError)
+      return c.json({ error: 'Failed to add answer' }, 500)
     }
 
-    return c.json({ answer })
+    // Award points to answerer
+    const { error: pointsError } = await supabase
+      .from('profiles')
+      .update({
+        points: (user.points || 0) + 10,
+        questions_answered: (user.questionsAnswered || 0) + 1
+      })
+      .eq('id', user.id)
+
+    if (pointsError) {
+      console.log('Update user points error:', pointsError)
+    }
+
+    return c.json({ answer: newAnswer })
   } catch (error) {
     console.log('Post answer error:', error)
     return c.json({ error: 'Failed to post answer' }, 500)
@@ -459,7 +532,7 @@ app.post('/make-server-0a52de3b/questions/:id/answers', async (c) => {
 })
 
 // Remove an answer (only by question owner)
-app.delete('/make-server-0a52de3b/questions/:questionId/answers/:answerId', async (c) => {
+app.delete('/make-server-0a52de3b/questions/:questionId/answers/:answerId', async (c: Context) => {
   try {
     const user = await verifyUser(c)
     if (!user) {
@@ -469,18 +542,36 @@ app.delete('/make-server-0a52de3b/questions/:questionId/answers/:answerId', asyn
     const questionId: string = c.req.param('questionId')
     const answerId: string = c.req.param('answerId')
 
-    const rawQuestion = await kv.get(`question:${questionId}`)
-    if (!isQuestion(rawQuestion)) {
+    // Get question from database
+    const { data: question, error: questionError } = await supabase
+      .from('questions')
+      .select('*')
+      .eq('id', questionId)
+      .single()
+
+    if (questionError || !question) {
       return c.json({ error: 'Question not found' }, 404)
     }
-    const question: Question = rawQuestion
 
-    if (question.userId !== user.id) {
+    // Check if user is the question owner
+    if (question.user_id !== user.id) {
       return c.json({ error: 'Only question owner can remove answers' }, 403)
     }
 
-    question.answers = question.answers.filter((answer: Answer) => answer.id !== answerId)
-    await kv.set(`question:${questionId}`, question)
+    // Remove the answer from the answers array
+    const currentAnswers = question.answers || []
+    const updatedAnswers = currentAnswers.filter((answer: Answer) => answer.id !== answerId)
+
+    // Update question in database
+    const { error: updateError } = await supabase
+      .from('questions')
+      .update({ answers: updatedAnswers })
+      .eq('id', questionId)
+
+    if (updateError) {
+      console.log('Update question error:', updateError)
+      return c.json({ error: 'Failed to remove answer' }, 500)
+    }
 
     return c.json({ success: true })
   } catch (error) {
@@ -490,7 +581,7 @@ app.delete('/make-server-0a52de3b/questions/:questionId/answers/:answerId', asyn
 })
 
 // Save/unsave a question
-app.post('/make-server-0a52de3b/questions/:id/save', async (c) => {
+app.post('/make-server-0a52de3b/questions/:id/save', async (c: Context) => {
   try {
     const user = await verifyUser(c)
     if (!user) {
@@ -498,22 +589,38 @@ app.post('/make-server-0a52de3b/questions/:id/save', async (c) => {
     }
 
     const questionId: string = c.req.param('id')
-    const rawQuestion = await kv.get(`question:${questionId}`)
-    if (!isQuestion(rawQuestion)) {
+
+    // Get question from database
+    const { data: question, error: questionError } = await supabase
+      .from('questions')
+      .select('*')
+      .eq('id', questionId)
+      .single()
+
+    if (questionError || !question) {
       return c.json({ error: 'Question not found' }, 404)
     }
-    const question: Question = rawQuestion
 
-    const savedBy: string[] = question.savedBy || []
+    const savedBy: string[] = question.saved_by || []
     const alreadySaved = savedBy.includes(user.id)
 
+    let updatedSavedBy: string[]
     if (alreadySaved) {
-      question.savedBy = savedBy.filter((id: string) => id !== user.id)
+      updatedSavedBy = savedBy.filter((id: string) => id !== user.id)
     } else {
-      question.savedBy = [...savedBy, user.id]
+      updatedSavedBy = [...savedBy, user.id]
     }
 
-    await kv.set(`question:${questionId}`, question)
+    // Update question in database
+    const { error: updateError } = await supabase
+      .from('questions')
+      .update({ saved_by: updatedSavedBy })
+      .eq('id', questionId)
+
+    if (updateError) {
+      console.log('Update question error:', updateError)
+      return c.json({ error: 'Failed to save question' }, 500)
+    }
 
     return c.json({ saved: !alreadySaved })
   } catch (error) {
@@ -523,26 +630,56 @@ app.post('/make-server-0a52de3b/questions/:id/save', async (c) => {
 })
 
 // Get similar questions
-app.get('/make-server-0a52de3b/questions/:id/similar', async (c) => {
+app.get('/make-server-0a52de3b/questions/:id/similar', async (c: Context) => {
   try {
     const questionId: string = c.req.param('id')
-    const rawQuestion = await kv.get(`question:${questionId}`)
-    if (!isQuestion(rawQuestion)) {
+
+    // Get the target question from database
+    const { data: question, error: questionError } = await supabase
+      .from('questions')
+      .select('*')
+      .eq('id', questionId)
+      .single()
+
+    if (questionError || !question) {
       return c.json({ error: 'Question not found' }, 404)
     }
-    const question: Question = rawQuestion
 
-    const allQuestionsRaw = await kv.getByPrefix('question:')
-    const similarQuestions = allQuestionsRaw
-      .filter(isQuestion)
-      .filter((q: Question) =>
-        q.id !== questionId &&
-        (q.subject === question.subject ||
-         question.tags?.some((tag: string) => q.tags?.includes(tag)))
-      )
-      .slice(0, 10)
+    // Get similar questions from database
+    const { data: similarQuestions, error: similarError } = await supabase
+      .from('questions')
+      .select(`
+        *,
+        users!questions_user_id_fkey (
+          name
+        )
+      `)
+      .neq('id', questionId)
+      .or(`subject.eq.${question.subject},tags.overlaps.${JSON.stringify(question.tags || [])}`)
+      .order('created_at', { ascending: false })
+      .limit(10)
 
-    return c.json({ questions: similarQuestions })
+    if (similarError) {
+      console.log('Get similar questions error:', similarError)
+      return c.json({ error: 'Failed to get similar questions' }, 500)
+    }
+
+    // Format questions with user names
+    const formattedQuestions = similarQuestions?.map((q: QuestionRow) => ({
+      id: q.id,
+      userId: q.user_id,
+      title: q.title,
+      content: q.content,
+      tags: q.tags,
+      subject: q.subject,
+      answerLimit: q.answer_limit,
+      answers: q.answers || [],
+      savedBy: q.saved_by || [],
+      createdAt: q.created_at,
+      userName: q.users?.name || 'Anonymous'
+    })) || []
+
+    return c.json({ questions: formattedQuestions })
   } catch (error) {
     console.log('Get similar questions error:', error)
     return c.json({ error: 'Failed to get similar questions' }, 500)
@@ -550,7 +687,7 @@ app.get('/make-server-0a52de3b/questions/:id/similar', async (c) => {
 })
 
 // Create a group
-app.post('/make-server-0a52de3b/groups', async (c) => {
+app.post('/make-server-0a52de3b/groups', async (c: Context) => {
   try {
     const user = await verifyUser(c)
     if (!user) {
@@ -560,21 +697,42 @@ app.post('/make-server-0a52de3b/groups', async (c) => {
     const { name, description, subject }: CreateGroupRequest = await c.req.json()
 
     const groupId = randomUUID()
-    const group: Group = {
-      id: groupId,
-      name,
-      description,
-      subject,
-      ownerId: user.id,
-      members: [user.id],
-      messages: [],
-      files: [],
-      createdAt: new Date().toISOString()
+
+    // Insert group into database
+    const { data: group, error: groupError } = await supabase
+      .from('groups')
+      .insert({
+        id: groupId,
+        name,
+        description,
+        subject,
+        owner_id: user.id,
+        members: [user.id],
+        messages: [],
+        files: []
+      })
+      .select()
+      .single()
+
+    if (groupError) {
+      console.log('Create group error:', groupError)
+      return c.json({ error: 'Failed to create group' }, 500)
     }
 
-    await kv.set(`group:${groupId}`, group)
+    // Format response to match expected structure
+    const formattedGroup: Group = {
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      subject: group.subject,
+      ownerId: group.owner_id,
+      members: group.members,
+      messages: group.messages || [],
+      files: group.files || [],
+      createdAt: group.created_at
+    }
 
-    return c.json({ group })
+    return c.json({ group: formattedGroup })
   } catch (error) {
     console.log('Create group error:', error)
     return c.json({ error: 'Failed to create group' }, 500)
@@ -582,19 +740,38 @@ app.post('/make-server-0a52de3b/groups', async (c) => {
 })
 
 // Get user's groups
-app.get('/make-server-0a52de3b/groups', async (c) => {
+app.get('/make-server-0a52de3b/groups', async (c: Context) => {
   try {
     const user = await verifyUser(c)
     if (!user) {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const allGroupsRaw = await kv.getByPrefix('group:')
-    const userGroups = allGroupsRaw
-      .filter(isGroup)
-      .filter((group: Group) => group.members.includes(user.id))
+    // Get groups where user is a member
+    const { data: groups, error } = await supabase
+      .from('groups')
+      .select('*')
+      .contains('members', [user.id])
 
-    return c.json({ groups: userGroups })
+    if (error) {
+      console.log('Get groups error:', error)
+      return c.json({ error: 'Failed to get groups' }, 500)
+    }
+
+    // Format groups to match expected structure
+    const formattedGroups: Group[] = groups?.map((group: GroupRow) => ({
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      subject: group.subject,
+      ownerId: group.owner_id,
+      members: group.members,
+      messages: group.messages || [],
+      files: group.files || [],
+      createdAt: group.created_at
+    })) || []
+
+    return c.json({ groups: formattedGroups })
   } catch (error) {
     console.log('Get groups error:', error)
     return c.json({ error: 'Failed to get groups' }, 500)
@@ -602,13 +779,38 @@ app.get('/make-server-0a52de3b/groups', async (c) => {
 })
 
 // Get global community messages
-app.get('/make-server-0a52de3b/community/:country', async (c) => {
+app.get('/make-server-0a52de3b/community/:country', async (c: Context) => {
   try {
     const country: string = c.req.param('country')
-    const rawMessages = await kv.get(`community:${country}`)
-    const messages: CommunityMessage[] = isCommunityMessageArray(rawMessages) ? rawMessages : []
 
-    return c.json({ messages })
+    // Get community messages from database
+    const { data: messages, error } = await supabase
+      .from('community_messages')
+      .select(`
+        *,
+        users!community_messages_user_id_fkey (
+          name
+        )
+      `)
+      .eq('country', country)
+      .order('created_at', { ascending: false })
+      .limit(100)
+
+    if (error) {
+      console.log('Get community messages error:', error)
+      return c.json({ error: 'Failed to get community messages' }, 500)
+    }
+
+    // Format messages with user names
+    const formattedMessages: CommunityMessage[] = messages?.map((msg: CommunityMessageRow) => ({
+      id: msg.id,
+      userId: msg.user_id,
+      userName: msg.users?.name || 'Anonymous',
+      content: msg.content,
+      createdAt: msg.created_at
+    })) || []
+
+    return c.json({ messages: formattedMessages })
   } catch (error) {
     console.log('Get community messages error:', error)
     return c.json({ error: 'Failed to get community messages' }, 500)
@@ -616,7 +818,7 @@ app.get('/make-server-0a52de3b/community/:country', async (c) => {
 })
 
 // Post to global community (once per week limit)
-app.post('/make-server-0a52de3b/community/:country', async (c) => {
+app.post('/make-server-0a52de3b/community/:country', async (c: Context) => {
   try {
     const user = await verifyUser(c)
     if (!user) {
@@ -626,41 +828,85 @@ app.post('/make-server-0a52de3b/community/:country', async (c) => {
     const country: string = c.req.param('country')
     const { content }: PostCommunityRequest = await c.req.json()
 
-    // Check if user has posted in the last week
-    const rawLastPost = await kv.get(`user_community_post:${user.id}:${country}`)
     const now = new Date()
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    if (rawLastPost && typeof rawLastPost === 'object' && 'createdAt' in rawLastPost && new Date(rawLastPost.createdAt as string) > oneWeekAgo) {
+    // Check if user has posted in the last week
+    const { data: lastPost } = await supabase
+      .from('user_community_posts')
+      .select('created_at')
+      .eq('user_id', user.id)
+      .eq('country', country)
+      .gte('created_at', oneWeekAgo.toISOString())
+      .single()
+
+    if (lastPost) {
       return c.json({ error: 'You can only post once per week' }, 429)
     }
 
-    const rawMessages = await kv.get(`community:${country}`)
-    const messages: CommunityMessage[] = isCommunityMessageArray(rawMessages) ? rawMessages : []
     const messageId = randomUUID()
 
-    const rawUser = await kv.get(`user:${user.id}`)
-    const userName = (isUserProfile(rawUser) ? rawUser.name : 'Anonymous')
+    // Insert new community message
+    const { data: message, error: messageError } = await supabase
+      .from('community_messages')
+      .insert({
+        id: messageId,
+        user_id: user.id,
+        country,
+        content
+      })
+      .select(`
+        *,
+        users!community_messages_user_id_fkey (
+          name
+        )
+      `)
+      .single()
 
-    const message: CommunityMessage = {
-      id: messageId,
-      userId: user.id,
-      userName,
-      content,
-      createdAt: now.toISOString()
+    if (messageError) {
+      console.log('Post community message error:', messageError)
+      return c.json({ error: 'Failed to post community message' }, 500)
     }
 
-    messages.unshift(message)
+    // Record user's post timestamp
+    const { error: postRecordError } = await supabase
+      .from('user_community_posts')
+      .insert({
+        user_id: user.id,
+        country,
+        created_at: now.toISOString()
+      })
 
-    // Keep only last 100 messages
-    if (messages.length > 100) {
-      messages.splice(100)
+    if (postRecordError) {
+      console.log('Post record error:', postRecordError)
+      // Don't fail the request if this fails, just log it
     }
 
-    await kv.set(`community:${country}`, messages)
-    await kv.set(`user_community_post:${user.id}:${country}`, { createdAt: now.toISOString() })
+    // Clean up old messages (keep only last 100)
+    const { data: allMessages } = await supabase
+      .from('community_messages')
+      .select('id')
+      .eq('country', country)
+      .order('created_at', { ascending: false })
 
-    return c.json({ message })
+    if (allMessages && allMessages.length > 100) {
+      const messagesToDelete = allMessages.slice(100).map(msg => msg.id)
+      await supabase
+        .from('community_messages')
+        .delete()
+        .in('id', messagesToDelete)
+    }
+
+    // Format response message
+    const formattedMessage: CommunityMessage = {
+      id: message.id,
+      userId: message.user_id,
+      userName: message.users?.name || 'Anonymous',
+      content: message.content,
+      createdAt: message.created_at
+    }
+
+    return c.json({ message: formattedMessage })
   } catch (error) {
     console.log('Post community message error:', error)
     return c.json({ error: 'Failed to post community message' }, 500)
@@ -668,7 +914,13 @@ app.post('/make-server-0a52de3b/community/:country', async (c) => {
 })
 
 // Root route
-app.get('/', (c) => {
+app.get('/', (c: Context) => {
+  return c.json({ message: 'Doubt Posting App API is running!' })
+})
+
+// Additional route for local development
+app.get('/my-function', (c: Context) => {
+  console.log('Handling /my-function route')
   return c.json({ message: 'Doubt Posting App API is running!' })
 })
 

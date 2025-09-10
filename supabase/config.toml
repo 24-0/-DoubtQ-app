@@ -312,8 +312,9 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# [edge_runtime.secrets]
-# secret_key = "env(SECRET_VALUE)"
+[edge_runtime.secrets]
+SUPABASE_URL = "https://gtqgwoxnpqeugarsruxk.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0cWd3b3hucHFldWdhcnNydXhrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzMzMDU2MywiZXhwIjoyMDcyOTA2NTYzfQ.fz_Kawx-9YTocRr2zRULFyJsf9zm0Zpr6THPd_bU1xM"
 
 [analytics]
 enabled = true

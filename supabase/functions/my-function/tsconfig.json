@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "@supabase/supabase-js": ["./supabase/supabase-js"]
+    }
+  }
+}

@@ -1,30 +1,39 @@
-# TODO - Show All Connected Portals View
+# Supabase Database Migration Plan
 
-## Steps to complete:
+## Phase 1: Database Schema Design ✅
+- [x] Analyze current KV store data model
+- [x] Design PostgreSQL tables for users, questions, answers, groups, community
+- [x] Create SQL migration script with proper indexes and constraints
+- [x] Set up Row Level Security (RLS) policies
+- [x] Add triggers for automatic timestamps and counters
 
-1. Update `src/components/Navbar.tsx`
-   - Add a new navigation item "All Portals" to the navItems array.
-   - Ensure clicking it sets `currentView` to "all-portals".
+## Phase 2: Edge Function Migration 🔄
+- [x] Update verifyUser() function to use database
+- [x] Migrate signup endpoint to create user profiles
+- [x] Migrate post question endpoint to insert into questions table
+- [x] Migrate get questions feed to query database with joins
+- [x] Migrate answer posting and retrieval
+- [ ] Migrate group creation and management
+- [ ] Migrate community message posting and retrieval
+- [ ] Migrate user profile management
+- [ ] Migrate search functionality
 
-2. Update `src/App.tsx`
-   - Add a new case "all-portals" in the `renderCurrentView` function.
-   - Create a new component or inline JSX to render all main views together:
-     - QuestionFeed
-     - PostQuestion
-     - StudyTable
-     - Groups
-     - Community
-     - Profile
-   - Ensure proper layout and styling for combined view.
+## Phase 3: Frontend Integration Testing
+- [ ] Test question posting and feed display
+- [ ] Test answer posting and display
+- [ ] Test search functionality
+- [ ] Test community features
+- [ ] Test group creation and management
+- [ ] Test user authentication flow
 
-3. Test the new "All Portals" view:
-   - Verify navigation from Navbar.
-   - Verify all components render correctly.
-   - Check user authentication gating.
-   - Test interaction and UI responsiveness.
+## Phase 4: Performance Optimization
+- [ ] Add database indexes for search queries
+- [ ] Implement caching where appropriate
+- [ ] Optimize query performance
+- [ ] Set up database monitoring
 
-4. Perform thorough testing of the entire app flow to ensure no regressions.
-
----
-
-I will start with step 1: updating Navbar.tsx to add the "All Portals" nav item.
+## Phase 5: Final Testing and Deployment
+- [ ] End-to-end testing of all features
+- [ ] Data migration from KV store (if needed)
+- [ ] Deploy to production
+- [ ] Monitor and fix any issues
